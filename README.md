@@ -262,3 +262,7 @@ Pros:
 3. EC skip read
 4. isReqTooBig
 5. extent lock files
+
+
+在read wal之前, 保证wal的三副本是一致的
+

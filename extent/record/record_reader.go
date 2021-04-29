@@ -98,7 +98,7 @@ const (
 )
 
 const (
-	BlockSize     = 32 * 1024
+	BlockSize     = 64 * 1024
 	BlockSizeMask = BlockSize - 1
 	HeaderSize    = 7
 )
@@ -122,7 +122,7 @@ type syncer interface {
 // Reader reads records from an underlying io.Reader.
 type Reader struct {
 	// r is the underlying reader.
-	r io.Reader
+	r io.ReadSeeker
 	// seq is the sequence number of the current record.
 	seq int
 	// buf[i:j] is the unread portion of the current chunk's payload.
@@ -146,10 +146,15 @@ type Reader struct {
 }
 
 // NewReader returns a new reader.
-func NewReader(r io.Reader) *Reader {
+func NewReader(r io.ReadSeeker) *Reader {
 	return &Reader{
 		r: r,
 	}
+}
+
+
+func (r *Reader) Last() bool {
+	return r.last
 }
 
 //called AFTER Next()
@@ -161,6 +166,7 @@ func (r *Reader) Offset() int64 {
 }
 
 //called AFTER singleReader.Read()
+//if r.Last() == false, 不能用End()的结果.
 func (r *Reader) End() int64 {
 	x := r.offset + int64(r.j)
 	return x
@@ -225,9 +231,11 @@ func (r *Reader) nextChunk(wantFirst bool) error {
 			return io.EOF
 		}
 
-		s, _ := r.r.(io.Seeker)
-		r.offset, _ = s.Seek(0, os.SEEK_CUR)
-
+		
+	
+		//s, _ := r.r.(io.Seeker)
+		r.offset, _ = r.r.Seek(0, os.SEEK_CUR)
+		
 		n, err := io.ReadFull(r.r, r.buf[:])
 		if err != nil && err != io.ErrUnexpectedEOF {
 			return err
@@ -240,13 +248,13 @@ func (r *Reader) nextChunk(wantFirst bool) error {
 // Next returns a reader for the next record. It returns io.EOF if there are no
 // more records. The reader returned becomes stale after the next Next call,
 // and should no longer be used.
-func (r *Reader) Next() (io.Reader, error) {
+func (r *Reader) Next(wantFirst bool) (io.Reader, error) {
 	r.seq++
 	if r.err != nil {
 		return nil, r.err
 	}
 	r.i = r.j
-	r.err = r.nextChunk(true)
+	r.err = r.nextChunk(wantFirst)
 	if r.err != nil {
 		return nil, r.err
 	}

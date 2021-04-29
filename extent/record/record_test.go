@@ -16,6 +16,7 @@ import (
 	"testing"
 
 	"github.com/journeymidnight/autumn/utils"
+	"github.com/mattetti/filebuffer"
 	"github.com/stretchr/testify/require"
 )
 
@@ -60,13 +61,15 @@ func testGeneratorWriter(
 	}
 
 	reset()
-	r := NewReader(buf)
+	
+	//r := NewReader(buf)
+	r := NewReader(filebuffer.New(buf.Bytes()))
 	for {
 		s, ok := gen()
 		if !ok {
 			break
 		}
-		rr, err := r.Next()
+		rr, err := r.Next(true)
 		if err != nil {
 			t.Fatalf("reader.Next: %v", err)
 		}
@@ -78,7 +81,7 @@ func testGeneratorWriter(
 			t.Fatalf("got %q, want %q", short(string(x)), short(s))
 		}
 	}
-	if _, err := r.Next(); err != io.EOF {
+	if _, err := r.Next(true); err != io.EOF {
 		t.Fatalf("got %v, want %v", err, io.EOF)
 	}
 }
@@ -177,9 +180,11 @@ func TestNonExhaustiveRead(t *testing.T) {
 		t.Fatalf("Close: %v", err)
 	}
 
-	r := NewReader(buf)
+	//r := NewReader(buf)
+	r := NewReader(filebuffer.New(buf.Bytes()))
+
 	for i := 0; i < n; i++ {
-		rr, _ := r.Next()
+		rr, _ := r.Next(true)
 		_, err := io.ReadFull(rr, p)
 		if err != nil {
 			t.Fatalf("ReadFull: %v", err)
@@ -205,12 +210,14 @@ func TestStaleReader(t *testing.T) {
 		t.Fatalf("Close: %v\n", err)
 	}
 
-	r := NewReader(buf)
-	r0, err := r.Next()
+	//r := NewReader(buf)
+	r := NewReader(filebuffer.New(buf.Bytes()))
+
+	r0, err := r.Next(true)
 	if err != nil {
 		t.Fatalf("reader.Next: %v", err)
 	}
-	r1, err := r.Next()
+	r1, err := r.Next(true)
 	if err != nil {
 		t.Fatalf("reader.Next: %v", err)
 	}
@@ -307,7 +314,7 @@ func TestBasicReadWrite(t *testing.T) {
 	//reader.Recover()
 	expected := []int{5, 5, 64 << 10}
 	for i := 0; i < 3; i++ {
-		r, err := reader.Next()
+		r, err := reader.Next(true)
 		if err == io.EOF {
 			break
 		}
@@ -324,7 +331,7 @@ func TestBasicReadWrite(t *testing.T) {
 	reader = NewReader(f)
 	buf.Reset()
 	reader.SeekRecord(12)
-	r, err := reader.Next()
+	r, err := reader.Next(true)
 	require.Nil(t, err)
 	d, err := ioutil.ReadAll(r)
 	require.Nil(t, err)
@@ -371,7 +378,7 @@ func TestRecoverNoOp(t *testing.T) {
 	}
 
 	r := NewReader(bytes.NewReader(recs.buf))
-	_, err = r.Next()
+	_, err = r.Next(true)
 	if err != nil || r.err != nil {
 		t.Fatalf("reader.Next: %v reader.err: %v", err, r.err)
 	}
@@ -404,7 +411,7 @@ func TestBasicRecover(t *testing.T) {
 	r := NewReader(underlyingReader)
 
 	// The first record r0 should be read just fine.
-	r0, err := r.Next()
+	r0, err := r.Next(true)
 	if err != nil {
 		t.Fatalf("Next: %v", err)
 	}
@@ -417,7 +424,7 @@ func TestBasicRecover(t *testing.T) {
 	}
 
 	// The next record should have a checksum mismatch.
-	_, err = r.Next()
+	_, err = r.Next(true)
 	if err == nil {
 		t.Fatal("Expected an error while reading a corrupted record")
 	}
@@ -436,7 +443,7 @@ func TestBasicRecover(t *testing.T) {
 	}
 
 	// The third record r2 should be read just fine.
-	r2, err := r.Next()
+	r2, err := r.Next(true)
 	if err != nil {
 		t.Fatalf("Next: %v", err)
 	}
@@ -468,7 +475,7 @@ func TestRecoverSingleBlock(t *testing.T) {
 	// The first record should fail, but only when we read deeper beyond the
 	// first block.
 	r := NewReader(bytes.NewReader(recs.buf))
-	r0, err := r.Next()
+	r0, err := r.Next(true)
 	if err != nil {
 		t.Fatalf("Next: %v", err)
 	}
@@ -490,7 +497,7 @@ func TestRecoverSingleBlock(t *testing.T) {
 	// into the block with the third record r2. Recovery should jump to that
 	// block, skipping over the end of the second record and start parsing the
 	// third record.
-	r2, err := r.Next()
+	r2, err := r.Next(true)
 	if err != nil {
 		t.Fatalf("Next: %v", err)
 	}
@@ -526,7 +533,7 @@ func TestRecoverMultipleBlocks(t *testing.T) {
 
 	// The first record should fail, but only when we read deeper beyond the first block.
 	r := NewReader(bytes.NewReader(recs.buf))
-	r0, err := r.Next()
+	r0, err := r.Next(true)
 	if err != nil {
 		t.Fatalf("Next: %v", err)
 	}
@@ -546,8 +553,8 @@ func TestRecoverMultipleBlocks(t *testing.T) {
 	// All of the data in the second record is lost because the first
 	// record shared a partial block with it. The following two records
 	// have corrupted checksums as well, so the call above to r.Recover
-	// should result in r.Next() being a reader to the 5th record.
-	r4, err := r.Next()
+	// should result in r.Next(true) being a reader to the 5th record.
+	r4, err := r.Next(true)
 	if err != nil {
 		t.Fatalf("Next: %v", err)
 	}
@@ -565,7 +572,7 @@ func verifyLastBlockRecover(recs *testRecords) error {
 	r := NewReader(bytes.NewReader(recs.buf))
 	// Loop to one element larger than the number of records to verify EOF.
 	for i := 0; i < len(recs.records)+1; i++ {
-		_, err := r.Next()
+		_, err := r.Next(true)
 		switch i {
 		case len(recs.records) - 1:
 			if err == nil {

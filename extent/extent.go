@@ -315,6 +315,7 @@ func (ex *Extent) ResetWriter() error {
 func (ex *Extent) RecoveryData(start uint32, blocks []*pb.Block) error {
 	expectedEnd := start
 
+	/*
 	for _, block := range blocks {
 		expectedEnd = record.ComputeEnd(expectedEnd, uint32(len(block.Data)))
 		ecBorder := utils.Ceil(start, ECChunkSize)
@@ -325,6 +326,7 @@ func (ex *Extent) RecoveryData(start uint32, blocks []*pb.Block) error {
 			expectedEnd = ecBorder + record.ComputeEnd(expectedEnd, uint32(len(block.Data)))
 		}
 	}
+	*/
 	
 	currentLength := atomic.LoadUint32(&ex.commitLength)
 
@@ -388,9 +390,11 @@ func (ex *Extent) AppendBlocks(blocks []*pb.Block,  doSync bool) ([]uint32, uint
 		//if expected end > 128M, skip to 128M
 		
 		
+		/*
 		if err := ex.makeErasureCodeSkip(uint32(end), block); err != nil {
 			return nil, 0 ,err
 		}
+		*/
 		
 		start, end, err = ex.writer.WriteRecord(block.Data)
 		utils.AssertTrue(end <= math.MaxUint32)
@@ -410,6 +414,7 @@ func (ex *Extent) AppendBlocks(blocks []*pb.Block,  doSync bool) ([]uint32, uint
 	return offsets, uint32(end), nil
 }
 
+/*
 func (ex *Extent) makeErasureCodeSkip(start uint32, block *pb.Block) error{
 	if len(block.Data) > int(MaxBlockSize) {
 		return errors.Errorf("block size exceeds the max block Size %d > %d", len(block.Data), MaxBlockSize)
@@ -433,6 +438,8 @@ func (ex *Extent) makeErasureCodeSkip(start uint32, block *pb.Block) error{
 	ex.resetWriter()
 	return nil
 }
+*/
+
 
 func (ex *Extent) ReadBlocks(offset uint32, maxNumOfBlocks uint32, maxTotalSize uint32) ([]*pb.Block, []uint32, uint32, error) {
 
@@ -460,7 +467,7 @@ func (ex *Extent) ReadBlocks(offset uint32, maxNumOfBlocks uint32, maxTotalSize 
 	var offsets []uint32
 	var end uint32
 	for i := uint32(0); i < maxNumOfBlocks;{
-		reader, err := rr.Next()
+		reader, err := rr.Next(true)
 		start := rr.Offset()
 		if err == io.EOF {
 			if ex.IsSeal() {

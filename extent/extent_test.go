@@ -128,8 +128,11 @@ func TestAppendReadFile(t *testing.T) {
 	assert.Nil(t, err)
 
 	//single thread read
-	retBlocks, _, _, err := extent.ReadBlocks(ret[0], 4, (20 << 20))
+	retBlocks, offsets, end, err := extent.ReadBlocks(ret[0], 4, (20 << 20))
+	fmt.Printf("%v\n", offsets)
+	fmt.Printf("%d\n", end)
 
+	
 	assert.Nil(t, err)
 	assert.Equal(t, cases, retBlocks)
 

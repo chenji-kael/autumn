@@ -288,7 +288,7 @@ func (wal *Wal) Replay(callback func(uint64, uint32, []*pb.Block)) error {
 		records := record.NewReader(f)
 		for {
 			var req request
-			rec, err := records.Next()
+			rec, err := records.Next(true)
 			if err == io.EOF {
 				break
 			}
